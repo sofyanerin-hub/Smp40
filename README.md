@@ -24,7 +24,7 @@ UPT SMP Negeri 40 Kota Makassar.
 6. Buka situs, masuk dengan `APP_PASSWORD`. Tabel dan kelas 8B dibuat otomatis.
 
 ## Yang sudah tersambung database
-Login, pilih/tambah kelas, daftar siswa, data lengkap siswa (tambah/ubah), absensi harian, beranda (rekap hari ini), pengaturan (nama wali, foto, logo, edit kelas).
+Login, pilih/tambah kelas, nilai rapor per kelas (leger, rerata, total, peringkat, ekspor CSV), daftar siswa, data lengkap siswa (tambah/ubah), absensi harian, beranda (rekap hari ini), pengaturan (nama wali, foto, logo, edit kelas).
 
 ## Belum tersambung (masih contoh)
 Halaman `siswa.html` (catatan perilaku) dan `jadwal.html` (jadwal mengajar).

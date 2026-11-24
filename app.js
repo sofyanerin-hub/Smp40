@@ -144,10 +144,93 @@ async function pengaturan() {
   };
 }
 
+// RUMUS-START
+const MAPEL = ['PAI', 'PAK', 'PKN', 'BIN', 'BING', 'MAT', 'IPA', 'IPS', 'TIK', 'PJOK', 'SBKP', 'BHD'];
+const TOP = 10;
+function hitung(skor) {
+  const v = MAPEL.map(m => skor && skor[m]).filter(x => x !== '' && x != null && !isNaN(x)).map(Number);
+  const total = v.reduce((a, b) => a + b, 0);
+  return { total, n: v.length, rerata: v.length ? total / v.length : 0 };
+}
+function ranking(rows) {
+  const vals = [...new Set(rows.filter(r => r.n).map(r => Math.round(r.rerata * 100)))].sort((a, b) => b - a);
+  rows.forEach(r => { const i = r.n ? vals.indexOf(Math.round(r.rerata * 100)) : -1; r.rank = i >= 0 && i < TOP ? i + 1 : null; });
+}
+// RUMUS-END
+const MCOL = { PAI: '#F4B6C8', PAK: '#E8E4C9', PKN: '#B7D7F0', BIN: '#F9CB3C', BING: '#5B9BD5', MAT: '#E7A5D2', IPA: '#F5B183', IPS: '#9BC84B', TIK: '#F4A640', PJOK: '#C9BCE0', SBKP: '#5B9BD5', BHD: '#E9B8B0' };
+const fmt = n => n.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+async function nilai() {
+  const k = await kelasAktif(); if (!k) return;
+  let sem = 'Ganjil', view = 'daftar', rows = [], cur = null;
+  const key = () => `${k.tahun_ajaran}-${sem}`;
+  const recalc = () => { rows.forEach(r => Object.assign(r, hitung(r.skor))); ranking(rows); };
+  const load = async () => {
+    const d = await api(`nilai?kelas=${k.id}&semester=${encodeURIComponent(key())}`);
+    rows = d.map(r => ({ ...r, skor: r.skor || {}, sakit: r.sakit ?? '', izin: r.izin ?? '', alpa: r.alpa ?? '' }));
+    recalc(); draw();
+  };
+  const badge = r => r.rank ? `<span style="font-size:12px;font-weight:800;padding:4px 10px;border-radius:99px;background:linear-gradient(135deg,#FDE68A,#F59E0B);color:#78350F">Peringkat ${r.rank}</span>` : '';
+  const draw = () => {
+    const isi = rows.filter(r => r.n);
+    const avg = isi.length ? isi.reduce((a, r) => a + r.rerata, 0) / isi.length : 0;
+    const top = isi.reduce((a, r) => (!a || r.rerata > a.rerata) ? r : a, null);
+    const sc = (bg, t, v) => `<div style="flex:1;background:${bg};border-radius:16px;padding:10px 12px;color:#fff;box-shadow:inset 0 2px 1px rgba(255,255,255,.35)"><div style="font-size:11px;font-weight:700">${t}</div><div style="font-size:18px;font-weight:800;margin-top:2px">${v}</div></div>`;
+    $('#sum').innerHTML = sc('linear-gradient(145deg,#0D9488,#0F766E)', 'Rerata kelas', isi.length ? fmt(avg) : '-') + sc('linear-gradient(145deg,#2563EB,#1D4ED8)', 'Tertinggi', top ? fmt(top.rerata) : '-') + sc('linear-gradient(145deg,#C2410C,#9A3412)', 'Terisi', `${isi.length}/${rows.length}`);
+    $$('[data-sem]').forEach(b => { const on = b.dataset.sem === sem; b.style.background = on ? 'linear-gradient(135deg,#0D9488,#0F766E)' : '#fff'; b.style.color = on ? '#fff' : '#475569'; b.style.border = on ? '0' : '1px solid #C7D2FE'; });
+    $$('[data-view]').forEach(b => { const on = b.dataset.view === view; b.style.background = on ? 'linear-gradient(135deg,#7C3AED,#4F46E5)' : '#fff'; b.style.color = on ? '#fff' : '#475569'; b.style.border = on ? '0' : '1px solid #C7D2FE'; });
+    if (!rows.length) { $('#nbody').innerHTML = '<div style="padding:20px;font-size:14px;color:#475569">Belum ada siswa di kelas ini. Tambahkan lewat menu Siswa.</div>'; return; }
+    if (view === 'daftar') {
+      $('#nbody').innerHTML = rows.map((r, i) => `<div role="button" tabindex="0" data-id="${r.id}" style="${CARD};padding:10px 12px;display:flex;gap:12px;align-items:center;cursor:pointer;margin-bottom:10px">${av(r.nama, i)}<div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:800">${esc(r.nama)}</div><div style="font-size:12px;color:#475569">${r.n ? `Total ${r.total} · Rerata ${fmt(r.rerata)}` : 'Nilai belum diisi'}</div></div>${badge(r)}</div>`).join('');
+    } else {
+      const th = (t, bg, ex = '') => `<th style="background:${bg};padding:6px 8px;font-size:11px;font-weight:800;border:1px solid #94A3B8;white-space:nowrap;${ex}">${t}</th>`;
+      const td = (v, ex = '') => `<td style="border:1px solid #CBD5E1;padding:6px 8px;font-size:12px;text-align:center;${ex}">${v}</td>`;
+      $('#nbody').innerHTML = `<div style="background:#fff;border-radius:12px;overflow:auto;height:100%"><table style="border-collapse:collapse;min-width:100%"><thead><tr>${th('Nama', '#DDE5B6', 'position:sticky;left:0;z-index:2;text-align:left;min-width:130px')}${MAPEL.map(m => th(m, MCOL[m])).join('')}${th('Sakit', '#fff')}${th('Izin', '#fff')}${th('Alpa', '#fff')}${th('Rerata', '#B9A4DD')}${th('Total', '#E4A9A9')}${th('Peringkat', '#F9D54A')}</tr></thead><tbody>${rows.map((r, i) => `<tr data-id="${r.id}" style="cursor:pointer">${td(`${i + 1}. ${esc(r.nama)}`, 'position:sticky;left:0;background:#fff;text-align:left;white-space:nowrap;font-weight:700')}${MAPEL.map(m => td(r.skor[m] ?? '', `background:${MCOL[m]}33`)).join('')}${td(r.sakit)}${td(r.izin)}${td(r.alpa)}${td(r.n ? fmt(r.rerata) : '', 'font-weight:700')}${td(r.n ? r.total : '', 'font-weight:700')}${td(r.rank ?? '', 'font-weight:800')}</tr>`).join('')}</tbody></table></div>`;
+    }
+  };
+  const inp = 'width:100%;box-sizing:border-box;height:44px;border:1px solid #C7D2FE;border-radius:12px;text-align:center;font:700 15px inherit;background:#fff';
+  const open = r => {
+    cur = r; const E = $('#editor'); E.hidden = false;
+    E.innerHTML = `<div style="background:linear-gradient(135deg,#4F46E5,#7C3AED 60%,#C026D3);padding:20px;color:#fff;display:flex;justify-content:space-between;align-items:center;gap:8px"><div><div style="font-size:12px;font-weight:700">Nilai rapor · ${esc(sem)} ${esc(k.tahun_ajaran)}</div><div style="font-size:18px;font-weight:800">${esc(r.nama)}</div></div><button id="tutup" style="height:44px;padding:0 16px;border:0;border-radius:12px;background:rgba(255,255,255,.2);color:#fff;font-weight:800">Tutup</button></div>
+      <div style="padding:14px 20px 0;font-size:12px;color:#475569">Isi PAI atau PAK sesuai agama siswa. Mata pelajaran yang kosong tidak dihitung.</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px 20px 0">${MAPEL.map(m => `<label style="display:block"><span style="display:block;font-size:11px;font-weight:800;margin-bottom:3px;padding:2px 8px;border-radius:8px;background:${MCOL[m]}">${m}</span><input data-m="${m}" inputmode="numeric" maxlength="3" value="${esc(r.skor[m] ?? '')}" style="${inp}"></label>`).join('')}</div>
+      <div style="padding:16px 20px 0;font-size:14px;font-weight:800">Ketidakhadiran</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:8px 20px 0">${[['sakit', 'Sakit'], ['izin', 'Izin'], ['alpa', 'Alpa']].map(([a, l]) => `<label style="display:block"><span style="display:block;font-size:11px;font-weight:800;margin-bottom:3px">${l}</span><input data-a="${a}" inputmode="numeric" maxlength="3" value="${esc(r[a])}" style="${inp}"></label>`).join('')}</div>
+      <div style="display:flex;gap:10px;padding:16px 20px 0"><div style="flex:1;${CARD};padding:12px"><div style="font-size:12px;color:#475569;font-weight:700">Total</div><div id="et" style="font-size:22px;font-weight:800;color:#4F46E5"></div></div><div style="flex:1;${CARD};padding:12px"><div style="font-size:12px;color:#475569;font-weight:700">Rerata</div><div id="er" style="font-size:22px;font-weight:800;color:#0F766E"></div></div></div>
+      <div style="padding:16px 20px 24px"><button id="simpan" style="width:100%;height:50px;border:0;border-radius:16px;background:linear-gradient(135deg,#4ADE80,#15803D);color:#fff;font:800 15px inherit;box-shadow:0 8px 16px -4px rgba(21,128,61,.5),inset 0 2px 1px rgba(255,255,255,.45),inset 0 -3px 2px rgba(0,0,0,.2)">Simpan nilai</button></div>`;
+    const read = () => { const sk = {}; $$('[data-m]', E).forEach(i => sk[i.dataset.m] = i.value.trim()); return sk; };
+    const live = () => { const h = hitung(read()); $('#et').textContent = h.total; $('#er').textContent = h.n ? fmt(h.rerata) : '-'; };
+    E.oninput = live; live();
+    $('#tutup').onclick = () => E.hidden = true;
+    $('#simpan').onclick = async function () {
+      const body = { siswa_id: r.id, semester: key(), skor: read() };
+      $$('[data-a]', E).forEach(i => body[i.dataset.a] = i.value.trim());
+      for (const m of MAPEL) if (body.skor[m] !== '' && !(Number(body.skor[m]) >= 0 && Number(body.skor[m]) <= 100)) return alert(`Nilai ${m} harus 0 sampai 100`);
+      try {
+        const d = await api('nilai', { method: 'POST', body });
+        r.skor = d.skor; ['sakit', 'izin', 'alpa'].forEach(a => r[a] = body[a]);
+        recalc(); draw(); E.hidden = true;
+      } catch (e) { alert(e.message); }
+    };
+  };
+  $('#nbody').onclick = e => { const x = e.target.closest('[data-id]'); if (x) open(rows.find(r => r.id == x.dataset.id)); };
+  $$('[data-sem]').forEach(b => b.onclick = () => { sem = b.dataset.sem; load(); });
+  $$('[data-view]').forEach(b => b.onclick = () => { view = b.dataset.view; draw(); });
+  $('#csv').onclick = () => {
+    const head = ['No', 'Nama', 'NISN', 'NIS', ...MAPEL, 'Sakit', 'Izin', 'Alpa', 'Rerata', 'Total', 'Peringkat'];
+    const q = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [head.map(q).join(';')].concat(rows.map((r, i) => [i + 1, r.nama, r.nisn, r.nis, ...MAPEL.map(m => r.skor[m] ?? ''), r.sakit, r.izin, r.alpa, r.n ? fmt(r.rerata) : '', r.n ? r.total : '', r.rank ?? ''].map(q).join(';')));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv;charset=utf-8' }));
+    a.download = `leger-kelas-${k.nama}-${sem}.csv`; a.click();
+  };
+  await load();
+}
+
 (async () => {
   const page = location.pathname.replace(/\.html$/, '').replace(/^\//, '') || 'index';
   $$('[data-tgl]').forEach(e => e.textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
   if (page === 'login') return;
-  try { await common(); const fn = { index, absensi, daftar, lengkap, kelas, pengaturan }[page]; if (fn) await fn(); }
+  try { await common(); const fn = { index, absensi, daftar, lengkap, kelas, pengaturan, nilai }[page]; if (fn) await fn(); }
   catch (e) { if (e) { console.error(e); alert(e.message || 'Gagal memuat data'); } }
 })();
