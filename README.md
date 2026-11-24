@@ -32,3 +32,6 @@ Halaman `siswa.html` (catatan perilaku) dan `jadwal.html` (jadwal mengajar).
 ## Catatan keamanan
 - Data siswa bersifat pribadi: pakai repo private dan password kuat.
 - Foto dan logo disimpan sebagai gambar kecil (maks 256 px) di database.
+
+## Jika tombol tidak berfungsi / data tidak muncul
+Buka `/api/status` di situs Anda. Halaman itu menampilkan apakah DATABASE_URL, APP_PASSWORD, SESSION_SECRET sudah ada, dan apakah database terhubung. Aplikasi juga menampilkan pita merah dengan penyebabnya.

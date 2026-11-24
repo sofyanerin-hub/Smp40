@@ -16,6 +16,6 @@ const guard = h => async (req, res) => {
   try {
     if (!authed(req)) return res.status(401).json({ error: 'unauthorized' });
     await h(req, res);
-  } catch (e) { console.error(e); res.status(500).json({ error: 'Terjadi kesalahan server' }); }
+  } catch (e) { console.error(e); res.status(500).json({ error: 'Terjadi kesalahan server', detail: String(e && e.message || e).slice(0, 160) }); }
 };
 module.exports = { sql, token, guard };

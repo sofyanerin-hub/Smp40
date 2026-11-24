@@ -1,11 +1,38 @@
 const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+let _init = false;
 async function api(p, o = {}) {
-  const r = await fetch('/api/' + p, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...o, body: o.body ? JSON.stringify(o.body) : undefined });
+  const go = () => fetch('/api/' + p, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...o, body: o.body ? JSON.stringify(o.body) : undefined });
+  let r = await go();
+  if (r.status === 500 && !_init) { _init = true; try { await fetch('/api/init', { credentials: 'same-origin' }); } catch (e) {} r = await go(); }
   if (r.status === 401) { location.href = 'login.html'; throw 0; }
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || 'Gagal');
+  if (!r.ok) throw new Error(j.detail ? `${j.error}: ${j.detail}` : (j.error || 'Gagal'));
   return j;
+}
+function toast(msg, bad) {
+  let t = $('#toast');
+  if (!t) { t = document.createElement('div'); t.id = 'toast'; t.setAttribute('role', 'status'); t.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:150px;max-width:90%;z-index:60;padding:12px 18px;border-radius:14px;font:700 13px "Plus Jakarta Sans",sans-serif;color:#fff;box-shadow:0 8px 20px rgba(0,0,0,.25)'; document.body.appendChild(t); }
+  t.style.background = bad ? '#B91C1C' : '#15803D'; t.textContent = msg; t.hidden = false; clearTimeout(t._h); t._h = setTimeout(() => t.hidden = true, 3500);
+}
+function askText(title, ph = '') {
+  return new Promise(res => {
+    const o = document.createElement('div');
+    o.style.cssText = 'position:fixed;inset:0;z-index:70;background:rgba(30,27,75,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+    o.innerHTML = `<form style="background:#fff;border-radius:20px;padding:20px;width:100%;max-width:340px;font-family:'Plus Jakarta Sans',sans-serif;color:#1E1B4B"><div style="font-size:16px;font-weight:800;margin-bottom:10px">${esc(title)}</div><input aria-label="${esc(title)}" placeholder="${esc(ph)}" style="width:100%;box-sizing:border-box;height:48px;border:1px solid #C7D2FE;border-radius:12px;padding:0 14px;font-weight:600;font-size:15px;font-family:inherit"><div style="display:flex;gap:10px;margin-top:14px"><button type="button" data-x style="flex:1;height:46px;border:1px solid #C7D2FE;border-radius:12px;background:#fff;font-weight:800;color:#475569;font-family:inherit">Batal</button><button type="submit" style="flex:1;height:46px;border:0;border-radius:12px;background:linear-gradient(135deg,#7C3AED,#4F46E5);color:#fff;font-weight:800;font-family:inherit">OK</button></div></form>`;
+    document.body.appendChild(o); const i = $('input', o); i.focus();
+    const done = v => { o.remove(); res(v); };
+    $('[data-x]', o).onclick = () => done(null);
+    $('form', o).onsubmit = e => { e.preventDefault(); done(i.value.trim() || null); };
+  });
+}
+async function banner(err) {
+  let st = '';
+  try { const s = await (await fetch('/api/status')).json(); st = `DATABASE_URL: ${s.env.DATABASE_URL ? 'ada' : 'BELUM ADA'} · APP_PASSWORD: ${s.env.APP_PASSWORD ? 'ada' : 'BELUM ADA'} · SESSION_SECRET: ${s.env.SESSION_SECRET ? 'ada' : 'BELUM ADA'} · Database: ${s.db} · Tabel: ${s.tabel}`; } catch (e) {}
+  const b = document.createElement('div'); b.setAttribute('role', 'alert');
+  b.style.cssText = 'position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;box-sizing:border-box;z-index:50;background:#FEE2E2;color:#7F1D1D;padding:10px 14px;font:700 12px/1.4 "Plus Jakarta Sans",sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.2)';
+  b.innerHTML = `Data belum bisa dimuat: ${esc(err.message || err)}<br>${esc(st)}<br><button style="margin-top:6px;height:36px;padding:0 14px;border:0;border-radius:10px;background:#B91C1C;color:#fff;font-weight:800;font-family:inherit" onclick="location.reload()">Coba lagi</button> <button style="margin-top:6px;height:36px;padding:0 14px;border:0;border-radius:10px;background:#fff;color:#7F1D1D;font-weight:800;font-family:inherit" onclick="this.parentNode.remove()">Tutup</button>`;
+  document.body.appendChild(b);
 }
 const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 const ICON_CLS = `<svg viewBox="0 0 48 50" width="52" height="52" aria-hidden="true" style="flex:none;filter:drop-shadow(0 4px 3px rgba(30,27,75,.3))"><defs><linearGradient id="gCLS" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#93C5FD"/><stop offset="1" stop-color="#2563EB"/></linearGradient></defs><g transform="translate(0,3)" fill="#1E3A8A"><path d="M24 7L2 18l22 11 22-11z"/><path d="M10 25v9c0 4 6 8 14 8s14-4 14-8v-9l-14 7z"/></g><g fill="url(#gCLS)"><path d="M24 7L2 18l22 11 22-11z"/><path d="M10 25v9c0 4 6 8 14 8s14-4 14-8v-9l-14 7z"/></g><path d="M44 19v12" stroke="#FDE68A" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M10 17l10-5" stroke="#fff" stroke-width="2.5" stroke-linecap="round" opacity=".55"/></svg>`, ICON_ALR = `<svg viewBox="0 0 48 50" width="44" height="44" aria-hidden="true" style="flex:none;filter:drop-shadow(0 4px 3px rgba(30,27,75,.3))"><defs><linearGradient id="gALR" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FCA5A5"/><stop offset="1" stop-color="#DC2626"/></linearGradient></defs><g transform="translate(0,3)" fill="#991B1B"><path d="M24 5L45 41H3z"/></g><g fill="url(#gALR)"><path d="M24 5L45 41H3z"/></g><rect x="22" y="17" width="4" height="13" rx="2" fill="#fff"/><circle cx="24" cy="35" r="2.5" fill="#fff"/></svg>`;
@@ -20,6 +47,7 @@ async function kelasAktif() {
   const list = await api('kelas');
   const id = +localStorage.getItem('kelas_id');
   const k = list.find(x => x.id === id) || list[0];
+  if (!k) toast('Belum ada kelas. Tambahkan di menu Kelas.', true);
   if (k) { localStorage.setItem('kelas_id', k.id); $$('[data-kelas]').forEach(e => e.textContent = 'Kelas ' + k.nama); $$('[data-kelasnama]').forEach(e => e.textContent = k.nama); }
   return k;
 }
@@ -118,30 +146,32 @@ async function kelas() {
   $('#kelaslist').innerHTML = list.map(k => `<div role="link" tabindex="0" data-id="${k.id}" style="${CARD};border:2px solid ${aktif && k.id === aktif.id ? '#7C3AED' : 'transparent'};padding:12px;display:flex;gap:12px;align-items:center;cursor:pointer;flex:none">${ICON_CLS}<div style="flex:1"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:16px;font-weight:800">Kelas ${esc(k.nama)}</span>${aktif && k.id === aktif.id ? '<span style="font-size:11px;font-weight:800;padding:3px 10px;border-radius:99px;background:#DCFCE7;color:#166534">Aktif</span>' : ''}</div><div style="font-size:13px;color:#475569;margin-top:1px">${esc(k.peran)} · ${k.jumlah} siswa · TA ${esc(k.tahun_ajaran)}</div></div></div>`).join('') +
     `<button id="tambah" style="height:50px;border:2px dashed #A78BFA;border-radius:16px;background:none;color:#6D28D9;font-size:14px;font-weight:800;flex:none">+ Tambah kelas</button>`;
   $('#kelaslist').onclick = async e => {
-    if (e.target.closest('#tambah')) { const n = prompt('Nama kelas (contoh: 8C)'); if (n) { await api('kelas', { method: 'POST', body: { nama: n.trim() } }); location.reload(); } return; }
+    if (e.target.closest('#tambah')) { const n = await askText('Nama kelas baru', 'contoh: 8C'); if (n) { try { await api('kelas', { method: 'POST', body: { nama: n } }); location.reload(); } catch (x) { toast(x.message, true); } } return; }
     const r = e.target.closest('[data-id]'); if (r) { localStorage.setItem('kelas_id', r.dataset.id); location.href = 'daftar.html'; }
   };
 }
 
 async function pengaturan() {
-  const p = await api('pengaturan'), k = await kelasAktif(); if (!k) return;
+  let k = null, foto, logo;
   const F = n => $(`[name=${n}]`);
-  F('nama_wali').value = p.nama_wali || ''; F('nama_kelas').value = k.nama; F('tahun_ajaran').value = k.tahun_ajaran || ''; F('peran').value = k.peran || '';
   const showLogo = d => $('#logobox').innerHTML = `<img alt="Logo sekolah" src="${d}" style="width:64px;height:64px;object-fit:contain">`;
-  if (p.logo) showLogo(p.logo);
-  let foto, logo;
+  const kelasBody = () => ({ id: k.id, nama: F('nama_kelas').value.trim(), tahun_ajaran: F('tahun_ajaran').value.trim(), peran: F('peran').value.trim() });
+  const need = () => { if (!k) { toast('Data kelas belum dimuat. Cek koneksi database lalu coba lagi.', true); return false; } return true; };
   $('#gantifoto').onclick = () => $('#ffoto').click();
   $('#unggahlogo').onclick = () => $('#flogo').click();
-  $('#ffoto').onchange = async e => { if (e.target.files[0]) { foto = await toData(e.target.files[0], 256, 'image/jpeg'); $('img[data-foto]').src = foto; } };
-  $('#flogo').onchange = async e => { if (e.target.files[0]) { logo = await toData(e.target.files[0], 256, 'image/png'); showLogo(logo); } };
-  const flash = (b, t) => { const o = b.textContent; b.textContent = t; setTimeout(() => b.textContent = o, 1500); };
-  const kelasBody = () => ({ id: k.id, nama: F('nama_kelas').value.trim(), tahun_ajaran: F('tahun_ajaran').value.trim(), peran: F('peran').value.trim() });
-  $('#editkelas').onclick = async function () { try { await api('kelas', { method: 'PUT', body: kelasBody() }); flash(this, 'Tersimpan'); } catch (e) { alert(e.message); } };
-  $('#tambahkelas').onclick = async () => { const n = prompt('Nama kelas baru (contoh: 8C)'); if (n) { try { await api('kelas', { method: 'POST', body: { nama: n.trim() } }); alert('Kelas ditambahkan. Pilih di menu Kelas.'); } catch (e) { alert(e.message); } } };
-  $('#simpan').onclick = async function () {
+  $('#ffoto').onchange = async e => { if (e.target.files[0]) { foto = await toData(e.target.files[0], 256, 'image/jpeg'); $('img[data-foto]').src = foto; toast('Foto dipilih. Tekan Simpan pengaturan.'); } };
+  $('#flogo').onchange = async e => { if (e.target.files[0]) { logo = await toData(e.target.files[0], 256, 'image/png'); showLogo(logo); toast('Logo dipilih. Tekan Simpan pengaturan.'); } };
+  $('#editkelas').onclick = async () => { if (!need()) return; try { await api('kelas', { method: 'PUT', body: kelasBody() }); toast('Kelas disimpan'); } catch (e) { toast(e.message, true); } };
+  $('#tambahkelas').onclick = async () => { const n = await askText('Nama kelas baru', 'contoh: 8C'); if (!n) return; try { await api('kelas', { method: 'POST', body: { nama: n } }); toast(`Kelas ${n} ditambahkan. Pilih di menu Kelas.`); } catch (e) { toast(e.message, true); } };
+  $('#simpan').onclick = async () => {
     const body = { nama_wali: F('nama_wali').value.trim() }; if (foto) body.foto = foto; if (logo) body.logo = logo;
-    try { await api('pengaturan', { method: 'POST', body }); await api('kelas', { method: 'PUT', body: kelasBody() }); flash(this, 'Tersimpan'); } catch (e) { alert(e.message); }
+    try { await api('pengaturan', { method: 'POST', body }); if (k) await api('kelas', { method: 'PUT', body: kelasBody() }); toast('Pengaturan tersimpan'); } catch (e) { toast(e.message, true); }
   };
+  const p = await api('pengaturan'); k = await kelasAktif();
+  F('nama_wali').value = p.nama_wali || '';
+  if (p.logo) showLogo(p.logo);
+  if (!k) return;
+  F('nama_kelas').value = k.nama; F('tahun_ajaran').value = k.tahun_ajaran || ''; F('peran').value = k.peran || '';
 }
 
 // RUMUS-START
@@ -185,10 +215,10 @@ async function nilai() {
     } else {
       const th = (t, bg, ex = '') => `<th style="background:${bg};padding:6px 8px;font-size:11px;font-weight:800;border:1px solid #94A3B8;white-space:nowrap;${ex}">${t}</th>`;
       const td = (v, ex = '') => `<td style="border:1px solid #CBD5E1;padding:6px 8px;font-size:12px;text-align:center;${ex}">${v}</td>`;
-      $('#nbody').innerHTML = `<div style="background:#fff;border-radius:12px;overflow:auto;height:100%"><table style="border-collapse:collapse;min-width:100%"><thead><tr>${th('Nama', '#DDE5B6', 'position:sticky;left:0;z-index:2;text-align:left;min-width:130px')}${MAPEL.map(m => th(m, MCOL[m])).join('')}${th('Sakit', '#fff')}${th('Izin', '#fff')}${th('Alpa', '#fff')}${th('Rerata', '#B9A4DD')}${th('Total', '#E4A9A9')}${th('Peringkat', '#F9D54A')}</tr></thead><tbody>${rows.map((r, i) => `<tr data-id="${r.id}" style="cursor:pointer">${td(`${i + 1}. ${esc(r.nama)}`, 'position:sticky;left:0;background:#fff;text-align:left;white-space:nowrap;font-weight:700')}${MAPEL.map(m => td(r.skor[m] ?? '', `background:${MCOL[m]}33`)).join('')}${td(r.sakit)}${td(r.izin)}${td(r.alpa)}${td(r.n ? fmt(r.rerata) : '', 'font-weight:700')}${td(r.n ? r.total : '', 'font-weight:700')}${td(r.rank ?? '', 'font-weight:800')}</tr>`).join('')}</tbody></table></div>`;
+      $('#nbody').innerHTML = `<div style="background:#fff;border-radius:12px;overflow-x:auto"><table style="border-collapse:collapse;min-width:100%"><thead><tr>${th('Nama', '#DDE5B6', 'position:sticky;left:0;z-index:2;text-align:left;min-width:130px')}${MAPEL.map(m => th(m, MCOL[m])).join('')}${th('Sakit', '#fff')}${th('Izin', '#fff')}${th('Alpa', '#fff')}${th('Rerata', '#B9A4DD')}${th('Total', '#E4A9A9')}${th('Peringkat', '#F9D54A')}</tr></thead><tbody>${rows.map((r, i) => `<tr data-id="${r.id}" style="cursor:pointer">${td(`${i + 1}. ${esc(r.nama)}`, 'position:sticky;left:0;background:#fff;text-align:left;white-space:nowrap;font-weight:700')}${MAPEL.map(m => td(r.skor[m] ?? '', `background:${MCOL[m]}33`)).join('')}${td(r.sakit)}${td(r.izin)}${td(r.alpa)}${td(r.n ? fmt(r.rerata) : '', 'font-weight:700')}${td(r.n ? r.total : '', 'font-weight:700')}${td(r.rank ?? '', 'font-weight:800')}</tr>`).join('')}</tbody></table></div>`;
     }
   };
-  const inp = 'width:100%;box-sizing:border-box;height:44px;border:1px solid #C7D2FE;border-radius:12px;text-align:center;font:700 15px inherit;background:#fff';
+  const inp = 'width:100%;box-sizing:border-box;height:44px;border:1px solid #C7D2FE;border-radius:12px;text-align:center;font-weight:700;font-size:15px;font-family:inherit;background:#fff';
   const open = r => {
     cur = r; const E = $('#editor'); E.hidden = false;
     E.innerHTML = `<div style="background:linear-gradient(135deg,#4F46E5,#7C3AED 60%,#C026D3);padding:20px;color:#fff;display:flex;justify-content:space-between;align-items:center;gap:8px"><div><div style="font-size:12px;font-weight:700">Nilai rapor · ${esc(sem)} ${esc(k.tahun_ajaran)}</div><div style="font-size:18px;font-weight:800">${esc(r.nama)}</div></div><button id="tutup" style="height:44px;padding:0 16px;border:0;border-radius:12px;background:rgba(255,255,255,.2);color:#fff;font-weight:800">Tutup</button></div>
@@ -197,7 +227,7 @@ async function nilai() {
       <div style="padding:16px 20px 0;font-size:14px;font-weight:800">Ketidakhadiran</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:8px 20px 0">${[['sakit', 'Sakit'], ['izin', 'Izin'], ['alpa', 'Alpa']].map(([a, l]) => `<label style="display:block"><span style="display:block;font-size:11px;font-weight:800;margin-bottom:3px">${l}</span><input data-a="${a}" inputmode="numeric" maxlength="3" value="${esc(r[a])}" style="${inp}"></label>`).join('')}</div>
       <div style="display:flex;gap:10px;padding:16px 20px 0"><div style="flex:1;${CARD};padding:12px"><div style="font-size:12px;color:#475569;font-weight:700">Total</div><div id="et" style="font-size:22px;font-weight:800;color:#4F46E5"></div></div><div style="flex:1;${CARD};padding:12px"><div style="font-size:12px;color:#475569;font-weight:700">Rerata</div><div id="er" style="font-size:22px;font-weight:800;color:#0F766E"></div></div></div>
-      <div style="padding:16px 20px 24px"><button id="simpan" style="width:100%;height:50px;border:0;border-radius:16px;background:linear-gradient(135deg,#4ADE80,#15803D);color:#fff;font:800 15px inherit;box-shadow:0 8px 16px -4px rgba(21,128,61,.5),inset 0 2px 1px rgba(255,255,255,.45),inset 0 -3px 2px rgba(0,0,0,.2)">Simpan nilai</button></div>`;
+      <div style="padding:16px 20px 24px"><button id="simpan" style="width:100%;height:50px;border:0;border-radius:16px;background:linear-gradient(135deg,#4ADE80,#15803D);color:#fff;font-weight:800;font-size:15px;font-family:inherit;box-shadow:0 8px 16px -4px rgba(21,128,61,.5),inset 0 2px 1px rgba(255,255,255,.45),inset 0 -3px 2px rgba(0,0,0,.2)">Simpan nilai</button></div>`;
     const read = () => { const sk = {}; $$('[data-m]', E).forEach(i => sk[i.dataset.m] = i.value.trim()); return sk; };
     const live = () => { const h = hitung(read()); $('#et').textContent = h.total; $('#er').textContent = h.n ? fmt(h.rerata) : '-'; };
     E.oninput = live; live();
@@ -231,6 +261,9 @@ async function nilai() {
   const page = location.pathname.replace(/\.html$/, '').replace(/^\//, '') || 'index';
   $$('[data-tgl]').forEach(e => e.textContent = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
   if (page === 'login') return;
-  try { await common(); const fn = { index, absensi, daftar, lengkap, kelas, pengaturan, nilai }[page]; if (fn) await fn(); }
-  catch (e) { if (e) { console.error(e); alert(e.message || 'Gagal memuat data'); } }
+  let bad = null;
+  try { await common(); } catch (e) { if (e) bad = e; }
+  const fn = { index, absensi, daftar, lengkap, kelas, pengaturan, nilai }[page];
+  if (fn) { try { await fn(); } catch (e) { if (e) { console.error(e); bad = bad || e; } } }
+  if (bad) banner(bad);
 })();
